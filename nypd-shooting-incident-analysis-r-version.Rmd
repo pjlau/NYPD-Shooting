@@ -1,0 +1,224 @@
+---
+title: An R Markdown document converted from "/Users/Lau/Downloads/nypd-shooting-incident-analysis-r-version.ipynb"
+output: html_document
+---
+
+```{r}
+library(tidyverse) # metapackage of all tidyverse packages
+list.files(path = "../input")
+library(tidyr)
+library("gplots")
+library(corrplot)
+```
+
+<font size="12">**Analysis of "NYPD Shooting Incident dataset"**</font>
+
+<font size="12">**Source**</font> <br>
+
+<font size="5"> The NYPD Shooting Incident dataset is recorded with all shooting incidents occurred in New York City (NYC) since 2006. If used and interpreted cautiously, it could be a valuable reference for researchers and policymakers regarding gun violence in NYC. However, since the dataset also contains some biases, statistical inferences could be misleading if the biases were not properly identified and addressed when interpreting the results of analysis. The dataset can be found and downloaded in .csv format at: https://data.cityofnewyork.us/Public-Safety/NYPD-Shooting-Incident-Data-Historic-/833y-fsy8 </font>
+
+<font size="12">**Business Understanding**</font> <br>
+<font size="5">In this study, the following questions will be answered by the analytic results of the code. </font> <br>
+<font size="6">Question 1: Are shooting incidents age-dependent?</font> <br>
+<font size="6">Question 2: Are shooting incidents race-dependent? </font> <br>
+<font size="6">Question 3: Are shooting incidents sex-dependent? </font> <br>
+
+<font size="12">**Data Understanding**</font>
+
+```{r}
+nypd <- read_csv("../input/nypd-shooting-incident-data-20062021/NYPD Shooting Incident - Data 2006-2021.csv")
+head(nypd)
+```
+
+<font size="12">**Data Cleaning**</font>
+
+```{r}
+# Remove  Columns: "Latitude", "Longitude", "Lon_Lat", "X_COORD_CD","Y_COORD_CD", "LOCATION_DESC", "PRECINCT", "JURISDICTION_CODE"
+drop_cols = c("Latitude", "Longitude", "Lon_Lat", "X_COORD_CD","Y_COORD_CD", "LOCATION_DESC", "PRECINCT", "JURISDICTION_CODE")
+nypd_clean <- nypd[,!names(nypd) %in% drop_cols]
+head(nypd_clean)
+```
+
+<font size="5"> 1. Coordinate information is eliminated since this study does not intend to fit the incidents into the map. </font> <br>
+<font size="5"> 2.PRECINCT and JURISDICTION_CODE are eliminated since law enforcement is beyond the scope of this study. </font>
+
+<font size="12">**Visualization**</font>
+
+```{r}
+# Frequency table: shooting incident by borough
+boro_cnt <- table(nypd_clean["BORO"])
+boro_cnt
+names(boro_cnt) <- c("BX","BKLN","MHN","QNS","ST")
+b1 <- barplot(boro_cnt, main = "Shooting Incident Counts by BORO", col = rainbow(5))
+b2 <- barplot(prop.table(boro_cnt)*100, main = "Relative Incidents by BORO (%)", col = rainbow(5))
+```
+
+<font size="5">Brooklyn has the most shooting incidents, followed by Bronx.</font>
+
+<font size="12">**Modeling**</font>
+
+<font size="5"> Convert the murder flag into binary value for binomial regression purposes. </font>
+
+```{r}
+
+nypd_clean$MURDER_FLAG <- as.integer(as.logical(nypd_clean$STATISTICAL_MURDER_FLAG))
+
+perp_age_cnt <- table(nypd_clean["PERP_AGE_GROUP"])
+perp_age_cnt
+nypd_clean <- nypd_clean[(nypd_clean$PERP_AGE_GROUP %in% c("<18","18-24","25-44","45-64","65+","UNKNOWN")),]
+perp_age_cnt <- table(nypd_clean["PERP_AGE_GROUP"])
+perp_age_cnt
+```
+
+```{r}
+#b3 <- barplot(perp_age_cnt, main = "Shooting Incident Counts by PERP_AGE_GROUP", col = rainbow(6))
+#b4 <- barplot(prop.table(perp_age_cnt)*100, main = "Relative Shooting Incidents by PERP_AGE_GROUP (%)", col = rainbow(6))
+```
+
+<font size="5">Age group 18-24 accounts for the lion's share of the shooting perpetrators, followed by Age group 25-44.</font> <br>
+<font size="5">Leave it later to visualize the PERP_AGE_GROUP and VIC_AGE_GROUP altogether.</font>
+
+```{r}
+summary(glm(MURDER_FLAG ~ PERP_AGE_GROUP,data =nypd_clean,family = "binomial" ))
+```
+
+<font size="5"> Considering a common significance level 0.05, most coefficients are statistically signifcant except AGE_GROUP 18-24.</font> <br>
+<font size="5"> A concerning trend is given 1-unit increment in the age group, the log odds of murdering shooting incidents increases more sharply with seniority.</font> <br>
+<font size="12">**Bias 1: In the attribute PERP_AGE_GROUP, AGE_GROUP 65+ are not well-represented since it accounts for only 1% population of AGE_GROUP 18-24 and noticeably lower than other age groups.**</font>
+
+```{r}
+chi_sq <- 1 - pchisq(14853-13910, df=(15232-15227))
+chi_sq
+```
+
+<font size="5">Since chi_sq = 0 is much smaller than the significance level 0.05, the perpetrator age model is useful in predicting murdering shooting incidents.</font>
+
+```{r}
+vic_age_cnt <- table(nypd_clean["VIC_AGE_GROUP"])
+vic_age_cnt
+#b5 <- barplot(vic_age_cnt, main = "Shooting Incident Counts by VIC_AGE_GROUP", col = rainbow(5))
+#b6 <- barplot(prop.table(vic_age_cnt)*100, main = "Relative Shooting Incidents by VIC_AGE_GROUP (%)", col = rainbow(5))
+```
+
+<font size="5">Age group 25-44 accounts for the lion's share of the shooting victims, followed by Age group 18-24.</font> <br>
+<font size="5">Leave it later to visualize the PERP_AGE_GROUP and VIC_AGE_GROUP altogether.</font> <br>
+<font size="12">**Bias 2: In the attribute VIC_AGE_GROUP, AGE_GROUP 65+ and AGE_GROUP_UNKOWN are not well-represented since they account for less than 2% population of AGE_GROUP 25-44 and noticeably lower than other age groups.**</font>
+
+```{r}
+summary(glm(MURDER_FLAG ~ VIC_AGE_GROUP,data =nypd_clean,family = "binomial" ))
+```
+
+<font size="5"> Considering a common significance level 0.05, most coefficients are statistically signifcant except AGE_GROUP UNKNOWN.</font> <br>
+<font size="5"> Given 1-unit increment in the age group, seniors are more vulnerable to murdering shooting incidents according to the log odds.</font>
+
+```{r}
+perp_race_cnt <- table(nypd_clean["PERP_RACE"])
+perp_race_cnt
+```
+
+<font size="5"> Black perpetrators account for the absolute majority, followed by white-Hispanic ones. </font> <br>
+<font size="5">Leave it later to visualize the PERP_RACE and VIC_RACE altogether.</font>
+
+```{r}
+vic_race_cnt <- table(nypd_clean["VIC_RACE"])
+vic_race_cnt
+```
+
+<font size="5"> Black victims account for the absolute majority, followed by white-Hispanic ones. </font> <br>
+<font size="5">Leave it later to visualize the PERP_RACE and VIC_RACE altogether.</font>
+
+```{r}
+summary(glm(MURDER_FLAG ~ PERP_SEX + 0,data =nypd_clean,family = "binomial" ))
+```
+
+```{r}
+summary(glm(MURDER_FLAG ~ VIC_SEX + 0,data =nypd_clean,family = "binomial" ))
+```
+
+<font size="12">**Additional Visualization Inspired by Modeling**</font>
+
+<font size="5"> Use ballon plot to display contengency tables </font>
+
+```{r}
+#pv_race_cnt <- table(nypd_clean["PERP_RACE","VIC_RACE"])
+pv_race_cnt <- with(nypd_clean,table(PERP_RACE,VIC_RACE))
+pv_race_cnt
+colnames(pv_race_cnt) <-c("NA","AP","B","BH","U","W","WH")
+rownames(pv_race_cnt) <-c("NA","AP","B","BH","U","W","WH")
+pv_race_cnt
+dt <- as.table(as.matrix(pv_race_cnt))
+balloonplot(t(dt), main ="Perp Race/ Vic Race", xlab ="", ylab="",label = FALSE, show.margins = FALSE)
+```
+
+<font size="5"> Most shooting incidents are black-on-black. </font>
+
+<font size="5"> Calculate relative contribution of each cell to the total Chi-square score. </font> <br>
+<font size="5"> Although this is NOT a correlation matrix, we can use it to study the association between PERP_RACE and VIC_RACE. </font>
+
+```{r}
+chisq_race <- chisq.test(pv_race_cnt)
+chisq_race
+```
+
+ <font size="5">Since p<< 0.05, the row variables (PERP_RACE) and the column variables (VIC_RACE) are statistically significantly associated. </font>
+
+```{r}
+race_contrib <- 100*chisq_race$residuals^2/chisq_race$statistic
+round(race_contrib, 4)
+corrplot(race_contrib, is.cor = FALSE)
+```
+
+```{r}
+pv_age_cnt <- with(nypd_clean,table(PERP_AGE_GROUP,VIC_AGE_GROUP))
+pv_age_cnt
+
+dt2 <- as.table(as.matrix(pv_age_cnt))
+balloonplot(t(dt2), main ="Perp Age/ Vic Age", xlab ="", ylab="",label = FALSE, show.margins = FALSE)
+```
+
+```{r}
+perp_sex_cnt <- table(nypd_clean["PERP_SEX"])
+perp_sex_cnt
+```
+
+```{r}
+vic_sex_cnt <- table(nypd_clean["VIC_SEX"])
+vic_sex_cnt
+```
+
+```{r}
+pv_sex_cnt <- with(nypd_clean,table(PERP_SEX,VIC_SEX))
+pv_sex_cnt
+
+dt3 <- as.table(as.matrix(pv_sex_cnt))
+balloonplot(t(dt3), main ="Perp Sex/ Vic Sex", xlab ="", ylab="",label = FALSE, show.margins = FALSE)
+```
+
+```{r}
+chisq_sex <- chisq.test(pv_sex_cnt)
+chisq_sex
+```
+
+ <font size="5">Since p<< 0.05, the row variables (PERP_SEX) and the column variables (VIC_SEX) are statistically significantly associated. </font>
+
+```{r}
+pv_age_cnt <- with(nypd_clean,table(PERP_AGE_GROUP,VIC_AGE_GROUP))
+pv_age_cnt
+```
+
+```{r}
+chisq_age <- chisq.test(pv_age_cnt)
+chisq_age
+```
+
+ <font size="5">Since p<< 0.05, the row variables (PERP_AGE_GROUP) and the column variables (VIC_AGE_GROUP) are statistically significantly associated. </font>
+
+<font size="12">**Takeaways**</font> <br>
+<font size="5">To answer the questions stated in the beginning, according to the Chi-sq test: </font> <br>
+<font size="6">Question 1: Are shooting incidents age-dependent?</font> <br>
+<font size="6">Answer 1: Yes, PERP_AGE_GROUP and VIC_AGE_GROUP are statistically significantly associated.</font> <br>
+<font size="6">Question 2: Are shooting incidents race-dependent? </font> <br>
+<font size="6">Answer 2: Yes, PERP_RACE and VIC_RACE are statistically significantly associated.</font> <br>
+<font size="6">Question 3: Are shooting incidents sex-dependent? </font> <br>
+<font size="6">Answer 3: Yes, PERP_SEX and VIC_SEX are statistically significantly associated.</font> <br>
+
