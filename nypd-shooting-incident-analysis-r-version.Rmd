@@ -5,7 +5,6 @@ output: html_document
 
 ```{r}
 library(tidyverse) # metapackage of all tidyverse packages
-list.files(path = "../input")
 library(tidyr)
 library("gplots")
 library(corrplot)
@@ -26,7 +25,7 @@ library(corrplot)
 <font size="12">**Data Understanding**</font>
 
 ```{r}
-nypd <- read_csv("../input/nypd-shooting-incident-data-20062021/NYPD Shooting Incident - Data 2006-2021.csv")
+nypd <- read_csv("../nypd-shooting-incident-data-20062021/NYPD Shooting Incident - Data 2006-2021.csv")
 head(nypd)
 ```
 
